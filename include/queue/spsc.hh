@@ -1,11 +1,10 @@
 #pragma once
 
-#include <atomic>
 #include <cstdlib>
 #include <new>
-#include <stdexcept>
 #include <utility>
 
+#include "descriptor.hh"
 #include "util/align.hh"
 #include "util/marker.hh"
 
@@ -16,13 +15,21 @@ template <typename T>
 class BoundedSPSCQueue : public util::Noncopyable, public util::Nonmovable {
  public:
   using ValueType = T;
+  using QueueType = BoundedSPSCQueue<T>;
+  using ProducerType = QueueProducer<QueueType>;
+  using ConsumerType = QueueConsumer<QueueType>;
+
+ public:
+  friend class QueueProducer<BoundedSPSCQueue<T>>;
+  friend class QueueConsumer<BoundedSPSCQueue<T>>;
 
  public:
   explicit BoundedSPSCQueue(uint32_t capacity)
       : size_(capacity + 1),
         elems_(static_cast<T*>(std::malloc(sizeof(T) * size_))),
         read_idx_(0),
-        write_idx_(0) {
+        write_idx_(0),
+        counter_(1, 1) {
     if (size_ < 2) {
       throw std::runtime_error("size of queue is too small");
     }
@@ -43,6 +50,10 @@ class BoundedSPSCQueue : public util::Noncopyable, public util::Nonmovable {
     }
     std::free(elems_);
   }
+
+ public:
+  auto consumer() -> ConsumerType { return ConsumerType(*this); }
+  auto producer() -> ProducerType { return ProducerType(*this); }
 
  public:
   template <typename... Args>
@@ -75,26 +86,26 @@ class BoundedSPSCQueue : public util::Noncopyable, public util::Nonmovable {
     return true;
   }
 
-  auto front() -> T* {
-    auto const cur_read = read_idx_.load(std::memory_order_relaxed);
-    if (cur_read == write_idx_.load(std::memory_order_acquire)) {
-      return nullptr;
-    }
-    return &elems_[cur_read];
-  }
+  // auto front() -> T* {
+  //   auto const cur_read = read_idx_.load(std::memory_order_relaxed);
+  //   if (cur_read == write_idx_.load(std::memory_order_acquire)) {
+  //     return nullptr;
+  //   }
+  //   return &elems_[cur_read];
+  // }
 
-  auto pop() -> void {
-    auto const cur_read = read_idx_.load(std::memory_order_relaxed);
-    if (cur_read == write_idx_.load(std::memory_order_acquire)) {
-      throw std::runtime_error("meet empty queue");
-    }
-    auto next = cur_read + 1;
-    if (next == size_) {
-      next = 0;
-    }
-    elems_[cur_read].~T();
-    read_idx_.store(next, std::memory_order_release);
-  }
+  // auto pop() -> void {
+  //   auto const cur_read = read_idx_.load(std::memory_order_relaxed);
+  //   if (cur_read == write_idx_.load(std::memory_order_acquire)) {
+  //     throw std::runtime_error("meet empty queue");
+  //   }
+  //   auto next = cur_read + 1;
+  //   if (next == size_) {
+  //     next = 0;
+  //   }
+  //   elems_[cur_read].~T();
+  //   read_idx_.store(next, std::memory_order_release);
+  // }
 
  public:
   auto isEmpty() const -> bool {
@@ -129,12 +140,21 @@ class BoundedSPSCQueue : public util::Noncopyable, public util::Nonmovable {
   alignas(util::cache_line_size) std::atomic_uint64_t write_idx_;
 
   [[gnu::unused]] char _tail_pad_[util::cache_line_size - sizeof(std::atomic_uint64_t)];
+
+  DescriptorCounter counter_;
 };
 
 template <typename T>
 class UnboundedSPSCQueue : public util::Noncopyable, public util::Nonmovable {
  public:
   using ValueType = T;
+  using QueueType = BoundedSPSCQueue<T>;
+  using ProducerType = QueueProducer<QueueType>;
+  using ConsumerType = QueueConsumer<QueueType>;
+
+ public:
+  friend class QueueProducer<UnboundedSPSCQueue<T>>;
+  friend class QueueConsumer<UnboundedSPSCQueue<T>>;
 
  private:
   class Node {
@@ -152,7 +172,8 @@ class UnboundedSPSCQueue : public util::Noncopyable, public util::Nonmovable {
   };
 
  public:
-  UnboundedSPSCQueue() : head_(new Node), tail_(head_), unused_(head_), head_copy_(head_) {}
+  explicit UnboundedSPSCQueue()
+      : head_(new Node), tail_(head_), unused_(head_), head_copy_(head_), counter_(1, 1) {}
   ~UnboundedSPSCQueue() {
     Node* p = unused_;
     while (p != nullptr) {
@@ -161,6 +182,10 @@ class UnboundedSPSCQueue : public util::Noncopyable, public util::Nonmovable {
       p = next;
     }
   };
+
+ public:
+  auto consumer() -> ConsumerType { return ConsumerType(*this); }
+  auto producer() -> ProducerType { return ProducerType(*this); }
 
  public:
   template <typename... Args>
@@ -216,6 +241,7 @@ class UnboundedSPSCQueue : public util::Noncopyable, public util::Nonmovable {
   Node* head_copy_;  // between tail_ and unused_tail_
 
   std::atomic_uint32_t size_;
+  DescriptorCounter counter_;
 };
 
 }  // namespace container
