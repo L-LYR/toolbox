@@ -7,7 +7,6 @@ project(
         'debug=true',
         'warning_level=3',
         'werror=true',
-        'b_coverage=true',
         'buildtype=debug'
     ],
 )

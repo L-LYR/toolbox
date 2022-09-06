@@ -1,28 +1,16 @@
-#include "spsc.hh"
-
 #include <gtest/gtest.h>
 #include <spdlog/spdlog.h>
 
 #include <array>
 
+#include "queue/spsc.hh"
+#include "test_util.hh"
 #include "util/timer.hh"
 #include "util/type.hh"
 
 enum ConsumerOp {
   CheckAndPop,
   Pop,
-};
-
-template <typename T>
-class TestData {
- public:
-  static auto generate() -> T { return rand() % (1000000007UL); }
-};
-
-template <>
-class TestData<std::string> {
- public:
-  static auto generate() -> std::string { return std::string(12, 'F'); }
 };
 
 template <typename Queue, size_t QueueSize, size_t TestDataSize, ConsumerOp Op>
@@ -100,46 +88,18 @@ class CorrectnessTest {
 };
 
 template <typename T>
-using Queue = toolbox::container::SPSCQueue<T>;
+using BoundedSPSCQueue = toolbox::container::BoundedSPSCQueue<T>;
 
-template <typename T>
-class TestRunner {
- public:
-  TestRunner() : t_(new T) {}
-  ~TestRunner() = default;
-
- public:
-  auto Run() -> void { (*t_)(); }
-
- private:
-  std::unique_ptr<T> t_;
-};
-
-TEST(SPSCQueue, CorrectnessTest) {
-  TestRunner<CorrectnessTest<Queue<uint64_t>, 65535, 1 << 24, CheckAndPop>>().Run();
-  TestRunner<CorrectnessTest<Queue<uint64_t>, 65535, 1 << 24, Pop>>().Run();
-  TestRunner<CorrectnessTest<Queue<std::string>, 65535, 1 << 24, CheckAndPop>>().Run();
-  TestRunner<CorrectnessTest<Queue<std::string>, 65535, 1 << 24, Pop>>().Run();
+TEST(BoundedSPSCQueue, CorrectnessTest) {
+  TestRunner<CorrectnessTest<BoundedSPSCQueue<uint64_t>, 65535, 1 << 24, CheckAndPop>>().Run();
+  TestRunner<CorrectnessTest<BoundedSPSCQueue<uint64_t>, 65535, 1 << 24, Pop>>().Run();
+  TestRunner<CorrectnessTest<BoundedSPSCQueue<std::string>, 65535, 1 << 24, CheckAndPop>>().Run();
+  TestRunner<CorrectnessTest<BoundedSPSCQueue<std::string>, 65535, 1 << 24, Pop>>().Run();
 }
 
-class DtorCounter {
- private:
-  static uint32_t n;
-
- public:
-  static auto get() -> uint32_t { return n; }
-
- public:
-  DtorCounter() { ++n; }
-  DtorCounter(const DtorCounter &) { ++n; }
-  ~DtorCounter() { --n; }
-};
-
-uint32_t DtorCounter::n = 0;
-
-TEST(SPSCQueue, DtorTest) {
+TEST(BoundedSPSCQueue, DtorTest) {
   {
-    Queue<DtorCounter> q(1024);
+    BoundedSPSCQueue<DtorCounter> q(1024);
     for (int i = 0; i < 10; ++i) {
       EXPECT_TRUE(q.push(DtorCounter()));
     }
@@ -153,7 +113,7 @@ TEST(SPSCQueue, DtorTest) {
   }
   EXPECT_EQ(DtorCounter::get(), 0);
   {
-    Queue<DtorCounter> q(4);
+    BoundedSPSCQueue<DtorCounter> q(4);
     for (int i = 0; i < 3; ++i) {
       EXPECT_TRUE(q.push(DtorCounter()));
     }
@@ -169,8 +129,8 @@ TEST(SPSCQueue, DtorTest) {
   EXPECT_EQ(DtorCounter::get(), 0);
 }
 
-TEST(SPSCQueue, MiscTest) {
-  Queue<int> queue(2);
+TEST(BoundedSPSCQueue, MiscTest) {
+  BoundedSPSCQueue<int> queue(2);
   EXPECT_EQ(queue.capacity(), 2);
 
   EXPECT_TRUE(queue.isEmpty());
