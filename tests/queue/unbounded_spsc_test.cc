@@ -3,11 +3,11 @@
 template <typename T>
 using UnboundedSPSCQueue = toolbox::container::UnboundedSPSCQueue<T>;
 
-TEST(UnboundedSPSCQueue, CorrectnessTest) {
+TEST(UnboundedSPSCQueue, SPSCCorrectnessTest) {
   UnboundedSPSCQueue<uint64_t> iq;
-  TestRunner<CorrectnessTest<UnboundedSPSCQueue<uint64_t>, 1 << 24>>(iq).Run();
+  std::make_shared<SPSCCorrectnessTest<UnboundedSPSCQueue<uint64_t>, 1 << 24>>(iq);
   UnboundedSPSCQueue<std::string> sq;
-  TestRunner<CorrectnessTest<UnboundedSPSCQueue<std::string>, 1 << 24>>(sq).Run();
+  std::make_shared<SPSCCorrectnessTest<UnboundedSPSCQueue<std::string>, 1 << 24>>(sq);
 }
 
 TEST(UnboundedSPSCQueue, DtorTest) {

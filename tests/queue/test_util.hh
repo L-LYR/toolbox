@@ -22,20 +22,6 @@ class TestData<std::string> {
   static auto generate() -> std::string { return std::string(12, 'F'); }
 };
 
-template <typename T>
-class TestRunner {
- public:
-  template <typename... Args>
-  TestRunner(Args &&...args) : t_(new T(std::forward<Args>(args)...)) {}
-  ~TestRunner() = default;
-
- public:
-  auto Run() -> void { (*t_)(); }
-
- private:
-  std::unique_ptr<T> t_;
-};
-
 class DtorCounter {
  private:
   inline static uint32_t n = 0;
@@ -50,23 +36,19 @@ class DtorCounter {
 };
 
 template <typename Queue, size_t TestDataSize>
-class CorrectnessTest {
+class SPSCCorrectnessTest {
  public:
-  using T = typename Queue::ValueType;
+  using ValueType = typename Queue::ValueType;
+  using ConsumerType = typename Queue::ConsumerType;
+  using ProducerType = typename Queue::ProducerType;
 
  public:
-  explicit CorrectnessTest(Queue &q) : consumer_(q), producer_(q) {
+  explicit SPSCCorrectnessTest(Queue &q) : consumer_(q), producer_(q) {
     for (size_t i = 0; i < TestDataSize; i++) {
-      test_data_.at(i) = TestData<T>::generate();
+      test_data_.at(i) = TestData<ValueType>::generate();
     }
-  }
-  ~CorrectnessTest() = default;
-
- public:
-  auto operator()() {
     spdlog::info("Queue Type: {}, TestDataSize: {}", toolbox::util::typenameOf<Queue>(),
                  TestDataSize);
-
     timer_.begin();
 
     std::thread producer([this] { produce(); });
@@ -76,8 +58,9 @@ class CorrectnessTest {
     consumer.join();
 
     timer_.end();
-    spdlog::info("done : {} ms", timer_.elapsed<std::chrono::milliseconds>());
+    spdlog::info("done: {} ms", timer_.elapsed<std::chrono::milliseconds>());
   }
+  ~SPSCCorrectnessTest() = default;
 
  public:
   auto produce() -> void {
@@ -89,7 +72,7 @@ class CorrectnessTest {
 
   auto consume() -> void {
     for (auto &expect : test_data_) {
-      T got;
+      ValueType got;
       while (not consumer_.pop(got))
         ;
       EXPECT_EQ(got, expect);
@@ -97,8 +80,66 @@ class CorrectnessTest {
   }
 
  private:
-  toolbox::container::QueueConsumer<Queue> consumer_;
-  toolbox::container::QueueProducer<Queue> producer_;
+  ConsumerType consumer_;
+  ProducerType producer_;
   toolbox::util::Timer timer_;
-  std::array<T, TestDataSize> test_data_;
+  std::array<ValueType, TestDataSize> test_data_;
+};
+
+template <typename Queue>
+class MPMCCorrectnessTest {
+ public:
+  using ValueType = typename Queue::ValueType;
+  using ConsumerType = typename Queue::ConsumerType;
+  using ProducerType = typename Queue::ProducerType;
+
+  static_assert(std::is_same<uint64_t, ValueType>(), "we need uint64_t");
+
+ public:
+  static auto pushPop(uint32_t n_thread, uint32_t n_ops, Queue &q, std::atomic_uint64_t &sum,
+                      uint32_t x) -> void {
+    auto producer = q.producer();
+    auto consumer = q.consumer();
+    uint64_t local_sum = 0;
+    uint64_t src = x;
+    uint64_t received = x;
+    while (src < n_ops || received < n_ops) {
+      if (src < n_ops && producer.push(src)) {
+        src += n_thread;
+      }
+      uint64_t dst = 0;
+      if (received < n_ops && consumer.pop(dst)) {
+        received += n_thread;
+        local_sum += dst;
+      }
+    }
+    sum += local_sum;
+  }
+
+ public:
+  explicit MPMCCorrectnessTest(Queue &q, uint32_t n_thread, uint32_t n_ops) {
+    spdlog::info("Queue Type: {}, N thread: {}, N Ops: {}", toolbox::util::typenameOf<Queue>(),
+                 n_thread, n_ops);
+    timer_.begin();
+
+    std::atomic_uint64_t sum(0);
+    for (uint32_t i = 0; i < n_thread; i++) {
+      ts_.emplace_back(&MPMCCorrectnessTest::pushPop, n_thread, n_ops, std::ref(q), std::ref(sum),
+                       i);
+    }
+    for (auto &t : ts_) {
+      t.join();
+    }
+    uint64_t expect = (uint64_t)n_ops * (n_ops - 1) / 2 - sum;
+    EXPECT_EQ(expect, 0);
+
+    timer_.end();
+    spdlog::info("done: {} ms", timer_.elapsed<std::chrono::milliseconds>());
+  }
+
+  ~MPMCCorrectnessTest() = default;
+
+ private:
+  std::vector<std::thread> ts_;
+  toolbox::util::Timer timer_;
 };

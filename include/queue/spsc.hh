@@ -1,6 +1,5 @@
 #pragma once
 
-#include <cstdlib>
 #include <new>
 #include <utility>
 
@@ -15,18 +14,18 @@ template <typename T>
 class BoundedSPSCQueue : public util::Noncopyable, public util::Nonmovable {
  public:
   using ValueType = T;
-  using QueueType = BoundedSPSCQueue<T>;
+  using QueueType = BoundedSPSCQueue<ValueType>;
   using ProducerType = QueueProducer<QueueType>;
   using ConsumerType = QueueConsumer<QueueType>;
 
  public:
-  friend class QueueProducer<BoundedSPSCQueue<T>>;
-  friend class QueueConsumer<BoundedSPSCQueue<T>>;
+  friend class QueueProducer<QueueType>;
+  friend class QueueConsumer<QueueType>;
 
  public:
   explicit BoundedSPSCQueue(uint32_t capacity)
       : size_(capacity + 1),
-        elems_(static_cast<T*>(std::malloc(sizeof(T) * size_))),
+        elems_(static_cast<ValueType*>(std::malloc(sizeof(ValueType) * size_))),
         read_idx_(0),
         write_idx_(0),
         counter_(1, 1) {
@@ -38,11 +37,11 @@ class BoundedSPSCQueue : public util::Noncopyable, public util::Nonmovable {
     }
   }
   ~BoundedSPSCQueue() {
-    if (not std::is_trivially_destructible<T>()) {
+    if (not std::is_trivially_destructible<ValueType>()) {
       size_t idx = read_idx_;
       size_t end = write_idx_;
       while (idx != end) {
-        elems_[idx].~T();
+        elems_[idx].~ValueType();
         if (++idx == size_) {
           idx = 0;
         }
@@ -64,14 +63,14 @@ class BoundedSPSCQueue : public util::Noncopyable, public util::Nonmovable {
       next = 0;
     }
     if (next != read_idx_.load(std::memory_order_acquire)) {
-      new (&elems_[cur_write]) T(std::forward<Args>(args)...);
+      new (&elems_[cur_write]) ValueType(std::forward<Args>(args)...);
       write_idx_.store(next, std::memory_order_release);
       return true;
     }
     return false;
   }
 
-  auto pop(T& e) -> bool {
+  auto pop(ValueType& e) -> bool {
     auto const cur_read = read_idx_.load(std::memory_order_relaxed);
     if (cur_read == write_idx_.load(std::memory_order_acquire)) {
       return false;
@@ -81,12 +80,12 @@ class BoundedSPSCQueue : public util::Noncopyable, public util::Nonmovable {
       next = 0;
     }
     e = std::move(elems_[cur_read]);
-    elems_[next].~T();
+    elems_[cur_read].~ValueType();
     read_idx_.store(next, std::memory_order_release);
     return true;
   }
 
-  // auto front() -> T* {
+  // auto front() -> ValueType* {
   //   auto const cur_read = read_idx_.load(std::memory_order_relaxed);
   //   if (cur_read == write_idx_.load(std::memory_order_acquire)) {
   //     return nullptr;
@@ -103,7 +102,7 @@ class BoundedSPSCQueue : public util::Noncopyable, public util::Nonmovable {
   //   if (next == size_) {
   //     next = 0;
   //   }
-  //   elems_[cur_read].~T();
+  //   elems_[cur_read].~ValueType();
   //   read_idx_.store(next, std::memory_order_release);
   // }
 
@@ -135,7 +134,7 @@ class BoundedSPSCQueue : public util::Noncopyable, public util::Nonmovable {
   [[gnu::unused]] char _head_pad_[util::cache_line_size];
 
   const uint32_t size_;
-  T* const elems_;
+  ValueType* const elems_;
   alignas(util::cache_line_size) std::atomic_uint64_t read_idx_;
   alignas(util::cache_line_size) std::atomic_uint64_t write_idx_;
 
@@ -148,13 +147,13 @@ template <typename T>
 class UnboundedSPSCQueue : public util::Noncopyable, public util::Nonmovable {
  public:
   using ValueType = T;
-  using QueueType = BoundedSPSCQueue<T>;
+  using QueueType = UnboundedSPSCQueue<ValueType>;
   using ProducerType = QueueProducer<QueueType>;
   using ConsumerType = QueueConsumer<QueueType>;
 
  public:
-  friend class QueueProducer<UnboundedSPSCQueue<T>>;
-  friend class QueueConsumer<UnboundedSPSCQueue<T>>;
+  friend class QueueProducer<QueueType>;
+  friend class QueueConsumer<QueueType>;
 
  private:
   class Node {
@@ -168,7 +167,7 @@ class UnboundedSPSCQueue : public util::Noncopyable, public util::Nonmovable {
 
    public:
     std::atomic<Node*> next_;
-    T data_;
+    ValueType data_;
   };
 
  public:
@@ -197,7 +196,7 @@ class UnboundedSPSCQueue : public util::Noncopyable, public util::Nonmovable {
     return true;
   }
 
-  auto pop(T& e) -> bool {
+  auto pop(ValueType& e) -> bool {
     auto head_next = head_.load(std::memory_order_relaxed)->next_.load(std::memory_order_acquire);
     if (head_next != nullptr) {
       e = std::move(head_next->data_);
@@ -215,7 +214,7 @@ class UnboundedSPSCQueue : public util::Noncopyable, public util::Nonmovable {
     if (unused_ != head_copy_) {
       n = unused_;
       unused_ = unused_->next_.load(std::memory_order_relaxed);
-      n->data_.~T();
+      n->data_.~ValueType();
       new (n) Node(std::forward<Args>(args)...);
       return n;
     }
@@ -223,7 +222,7 @@ class UnboundedSPSCQueue : public util::Noncopyable, public util::Nonmovable {
     if (unused_ != head_copy_) {
       n = unused_;
       unused_ = unused_->next_.load(std::memory_order_relaxed);
-      n->data_.~T();
+      n->data_.~ValueType();
       new (n) Node(std::forward<Args>(args)...);
       return n;
     }
@@ -234,9 +233,9 @@ class UnboundedSPSCQueue : public util::Noncopyable, public util::Nonmovable {
   auto approximateSize() const -> size_t { return size_; }
 
  private:
-  std::atomic<Node*> head_;
-  [[gnu::unused]] char _pad_[util::cache_line_size];
-  Node* tail_;
+  alignas(util::cache_line_size) std::atomic<Node*> head_;
+  [[gnu::unused]] char _pad_[util::cache_line_size - sizeof(head_)];
+  alignas(util::cache_line_size) Node* tail_;
   Node* unused_;
   Node* head_copy_;  // between tail_ and unused_tail_
 

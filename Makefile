@@ -1,8 +1,10 @@
-.PHONY: clean all coverage test
+.PHONY: clean all coverage test build
 
-all:
-	CC=clang CXX=clang++ meson build && \
+all: build
 	meson compile -C build
+
+build:
+	CC=clang CXX=clang++ meson build
 
 test:
 	meson test toolbox: -C build -t -1

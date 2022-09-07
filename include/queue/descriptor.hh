@@ -3,24 +3,27 @@
 #include <atomic>
 #include <stdexcept>
 
+#include "util/marker.hh"
+
 namespace toolbox {
 namespace container {
 
 class DescriptorCounter {
  public:
-  DescriptorCounter(uint32_t max_producer, uint32_t max_consumer)
+  /// -1 means no limit
+  DescriptorCounter(int32_t max_producer, int32_t max_consumer)
       : n_producer_(0), n_consumer_(0), max_producer_(max_producer), max_consumer_(max_consumer) {}
   ~DescriptorCounter() = default;
 
  public:
-  std::atomic_uint32_t n_producer_;
-  std::atomic_uint32_t n_consumer_;
-  uint32_t max_producer_;
-  uint32_t max_consumer_;
+  std::atomic_int32_t n_producer_;
+  std::atomic_int32_t n_consumer_;
+  int32_t max_producer_;
+  int32_t max_consumer_;
 };
 
 template <typename Queue>
-class QueueProducer {
+class QueueProducer : util::Noncopyable {
  public:
   using ValueType = typename Queue::ValueType;
 
@@ -44,7 +47,7 @@ class QueueProducer {
 };
 
 template <typename Queue>
-class QueueConsumer {
+class QueueConsumer : util::Noncopyable {
  public:
   using ValueType = typename Queue::ValueType;
 
