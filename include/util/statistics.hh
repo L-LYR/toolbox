@@ -23,15 +23,15 @@ class Statistics {
   auto reset() -> void { memset(this, 0, sizeof(Statistics)); }
 
  public:
-  auto record(uint64_t us) -> void {
+  auto record(uint64_t x) -> void {
     uint32_t n = 0;
     for (uint32_t i = 0; i < N; i++) {
       n = (1 << i);
-      if (us < scale) {
-        s[i][us / n]++;
+      if (x < scale) {
+        s[i][x / n]++;
         return;
       }
-      us -= scale * n;
+      x -= scale * n;
     }
     s_inf_++;
   }
