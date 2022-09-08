@@ -1,7 +1,5 @@
 tests = [
-    'bounded_spsc_test',
-    'unbounded_spsc_test',
-    'mpmc_test',
+    'statistics_test',
 ]
 
 foreach test_name : tests

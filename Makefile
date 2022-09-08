@@ -15,10 +15,10 @@ coverage:
 	meson test toolbox: -C build-cov -t -1 && \
 	ninja coverage -C build-cov
 
-sanatize:
-	CC=clang CXX=clang++ meson build-sanatize -Db_sanitize=address -Db_lundef=false && \
-	meson compile -C build-sanatize && \
-	meson test toolbox: -C build-sanatize -t -1
+sanitize:
+	CC=clang CXX=clang++ meson build-sanitize -Db_sanitize=address -Db_lundef=false && \
+	meson compile -C build-sanitize && \
+	meson test toolbox: -C build-sanitize -t -1
 
 clean:
 	rm -rf build*
