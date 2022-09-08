@@ -7,7 +7,7 @@ project(
         'debug=true',
         'warning_level=3',
         'werror=true',
-        'buildtype=debug'
+        'buildtype=debug',
     ],
 )
 
@@ -18,6 +18,14 @@ if cpp.get_id() == 'gcc'
     add_global_arguments(
         '--param',
         'destructive-interference-size=64',
+        language: 'cpp',
+    )
+endif
+
+if get_option('b_sanitize') == 'address'
+    add_global_arguments(
+        '-fsanitize=address',
+        '-fno-omit-frame-pointer',
         language: 'cpp',
     )
 endif
