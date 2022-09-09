@@ -109,7 +109,8 @@ class Queue {
     do {
       std::atomic_thread_fence(std::memory_order_acquire);
 
-      auto n_remain = producer_handle_.tail_.load(std::memory_order_acquire) - consumer_old_head;
+      auto n_remain =
+          producer_handle_.tail_.load(std::memory_order_acquire) - consumer_old_head;
       if (n_remain < 1) return false;
       consumer_new_head = consumer_old_head + 1;
 

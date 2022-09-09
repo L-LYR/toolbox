@@ -5,9 +5,9 @@ using UnboundedSPSCQueue = toolbox::container::UnboundedSPSCQueue<T>;
 
 TEST(UnboundedSPSCQueue, SPSCCorrectnessTest) {
   UnboundedSPSCQueue<uint64_t> iq;
-  std::make_shared<SPSCCorrectnessTest<UnboundedSPSCQueue<uint64_t>, 1 << 24>>(iq);
+  std::make_shared<SPSCCorrectnessTest<UnboundedSPSCQueue<uint64_t>, 1 << 20>>(iq);
   UnboundedSPSCQueue<std::string> sq;
-  std::make_shared<SPSCCorrectnessTest<UnboundedSPSCQueue<std::string>, 1 << 24>>(sq);
+  std::make_shared<SPSCCorrectnessTest<UnboundedSPSCQueue<std::string>, 1 << 20>>(sq);
 }
 
 TEST(UnboundedSPSCQueue, DtorTest) {

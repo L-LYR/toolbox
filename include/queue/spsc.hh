@@ -108,7 +108,8 @@ class BoundedSPSCQueue : public util::Noncopyable, public util::Nonmovable {
 
  public:
   auto isEmpty() const -> bool {
-    return read_idx_.load(std::memory_order_acquire) == write_idx_.load(std::memory_order_acquire);
+    return read_idx_.load(std::memory_order_acquire) ==
+           write_idx_.load(std::memory_order_acquire);
   }
 
   auto isFull() const -> bool {
@@ -120,8 +121,8 @@ class BoundedSPSCQueue : public util::Noncopyable, public util::Nonmovable {
   }
 
   auto approximateSize() const -> size_t {
-    int ret =
-        write_idx_.load(std::memory_order_acquire) - read_idx_.load(std::memory_order_acquire);
+    int ret = write_idx_.load(std::memory_order_acquire) -
+              read_idx_.load(std::memory_order_acquire);
     if (ret < 0) {
       ret += size_;
     }
@@ -172,7 +173,11 @@ class UnboundedSPSCQueue : public util::Noncopyable, public util::Nonmovable {
 
  public:
   explicit UnboundedSPSCQueue()
-      : head_(new Node), tail_(head_), unused_(head_), head_copy_(head_), counter_(1, 1) {}
+      : head_(new Node),
+        tail_(head_),
+        unused_(head_),
+        head_copy_(head_),
+        counter_(1, 1) {}
   ~UnboundedSPSCQueue() {
     Node* p = unused_;
     while (p != nullptr) {
@@ -197,7 +202,8 @@ class UnboundedSPSCQueue : public util::Noncopyable, public util::Nonmovable {
   }
 
   auto pop(ValueType& e) -> bool {
-    auto head_next = head_.load(std::memory_order_relaxed)->next_.load(std::memory_order_acquire);
+    auto head_next =
+        head_.load(std::memory_order_relaxed)->next_.load(std::memory_order_acquire);
     if (head_next != nullptr) {
       e = std::move(head_next->data_);
       head_.store(head_next, std::memory_order_release);

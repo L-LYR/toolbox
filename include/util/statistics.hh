@@ -10,6 +10,10 @@
 namespace toolbox {
 namespace util {
 
+/// Suggestion:
+///     (2 ^ N - 1) * scale >= upper bound of the data
+/// Notice:
+///     The results are always smaller or equal to the actual statistics.
 template <uint32_t N, uint32_t scale>
 class Statistics {
   static_assert(N >= 1, "N is too small");
@@ -25,10 +29,12 @@ class Statistics {
  public:
   auto record(uint64_t x) -> void {
     uint32_t n = 0;
+    uint32_t y = 0;
     for (uint32_t i = 0; i < N; i++) {
       n = (1 << i);
-      if (x < scale) {
-        s[i][x / n]++;
+      y = x / n;
+      if (y < scale) {
+        s[i][y]++;
         return;
       }
       x -= scale * n;
@@ -131,8 +137,8 @@ class Statistics {
         "p95:   {}\n"
         "p99:   {}\n"
         "p999:  {}\n",
-        count(), sum(), avg(), min(), max(), percentile(0.5), percentile(0.9), percentile(0.95),
-        percentile(0.99), percentile(0.999));
+        count(), sum(), avg(), min(), max(), percentile(0.5), percentile(0.9),
+        percentile(0.95), percentile(0.99), percentile(0.999));
   }
 
  public:
@@ -150,13 +156,6 @@ class Statistics {
   uint64_t s[N][scale];
   uint64_t s_inf_;
 };
-
-template class Statistics<4, 4>;
-template class Statistics<4, 8>;
-template class Statistics<4, 16>;
-template class Statistics<4, 64>;
-template class Statistics<4, 128>;
-template class Statistics<4, 256>;
 
 template <uint32_t upperbound>
 using AccStatistics = Statistics<1, upperbound>;

@@ -14,12 +14,13 @@ namespace util {
 template <typename T>
 auto typenameOf() -> std::string {
   int status = 0;
-  std::unique_ptr<char, decltype(free)*> demanged_name(
+  std::unique_ptr<char, decltype(free)*> demangled_name(
       abi::__cxa_demangle(typeid(T).name(), nullptr, nullptr, &status), free);
   if (status != 0) {
-    throw std::runtime_error(fmt::format("fail to demangle type name, status: {}", status));
+    throw std::runtime_error(
+        fmt::format("fail to demangle type name, status: {}", status));
   }
-  return demanged_name.get();
+  return demangled_name.get();
 }
 
 }  // namespace util

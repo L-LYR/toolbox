@@ -8,10 +8,10 @@ using MPMCQueue = toolbox::container::Queue<T, toolbox::container::Handle, Size>
 TEST(MPMCQueue, SPSCCorrectnessTest) {
   MPMCQueue<uint64_t, 65535> iq;
   MPMCQueue<std::string, 65535> sq;
-  std::make_shared<SPSCCorrectnessTest<MPMCQueue<uint64_t, 65535>, 1 << 24>>(iq);
-  std::make_shared<SPSCCorrectnessTest<MPMCQueue<std::string, 65535>, 1 << 24>>(sq);
+  std::make_shared<SPSCCorrectnessTest<MPMCQueue<uint64_t, 65535>, 1 << 20>>(iq);
+  std::make_shared<SPSCCorrectnessTest<MPMCQueue<std::string, 65535>, 1 << 20>>(sq);
   for (uint32_t i = 1; i <= std::thread::hardware_concurrency(); i++) {
-    std::make_shared<MPMCCorrectnessTest<MPMCQueue<uint64_t, 65535>>>(iq, i, 1 << 24);
+    std::make_shared<MPMCCorrectnessTest<MPMCQueue<uint64_t, 65535>>>(iq, i, 1 << 10);
   }
 }
 

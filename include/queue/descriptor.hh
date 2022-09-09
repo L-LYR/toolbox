@@ -12,7 +12,10 @@ class DescriptorCounter {
  public:
   /// -1 means no limit
   DescriptorCounter(int32_t max_producer, int32_t max_consumer)
-      : n_producer_(0), n_consumer_(0), max_producer_(max_producer), max_consumer_(max_consumer) {}
+      : n_producer_(0),
+        n_consumer_(0),
+        max_producer_(max_producer),
+        max_consumer_(max_consumer) {}
   ~DescriptorCounter() = default;
 
  public:

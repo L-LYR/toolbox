@@ -5,9 +5,9 @@ using BoundedSPSCQueue = toolbox::container::BoundedSPSCQueue<T>;
 
 TEST(BoundedSPSCQueue, SPSCCorrectnessTest) {
   BoundedSPSCQueue<uint64_t> iq(65535);
-  std::make_unique<SPSCCorrectnessTest<BoundedSPSCQueue<uint64_t>, 1 << 24>>(iq);
+  std::make_unique<SPSCCorrectnessTest<BoundedSPSCQueue<uint64_t>, 1 << 20>>(iq);
   BoundedSPSCQueue<std::string> sq(65535);
-  std::make_unique<SPSCCorrectnessTest<BoundedSPSCQueue<std::string>, 1 << 24>>(sq);
+  std::make_unique<SPSCCorrectnessTest<BoundedSPSCQueue<std::string>, 1 << 20>>(sq);
 }
 
 TEST(BoundedSPSCQueue, DtorTest) {

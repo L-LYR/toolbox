@@ -96,8 +96,8 @@ class MPMCCorrectnessTest {
   static_assert(std::is_same<uint64_t, ValueType>(), "we need uint64_t");
 
  public:
-  static auto pushPop(uint32_t n_thread, uint32_t n_ops, Queue &q, std::atomic_uint64_t &sum,
-                      uint32_t x) -> void {
+  static auto pushPop(uint32_t n_thread, uint32_t n_ops, Queue &q,
+                      std::atomic_uint64_t &sum, uint32_t x) -> void {
     auto producer = q.producer();
     auto consumer = q.consumer();
     uint64_t local_sum = 0;
@@ -118,14 +118,14 @@ class MPMCCorrectnessTest {
 
  public:
   explicit MPMCCorrectnessTest(Queue &q, uint32_t n_thread, uint32_t n_ops) {
-    spdlog::info("Queue Type: {}, N thread: {}, N Ops: {}", toolbox::util::typenameOf<Queue>(),
-                 n_thread, n_ops);
+    spdlog::info("Queue Type: {}, N thread: {}, N Ops: {}",
+                 toolbox::util::typenameOf<Queue>(), n_thread, n_ops);
     timer_.begin();
 
     std::atomic_uint64_t sum(0);
     for (uint32_t i = 0; i < n_thread; i++) {
-      ts_.emplace_back(&MPMCCorrectnessTest::pushPop, n_thread, n_ops, std::ref(q), std::ref(sum),
-                       i);
+      ts_.emplace_back(&MPMCCorrectnessTest::pushPop, n_thread, n_ops, std::ref(q),
+                       std::ref(sum), i);
     }
     for (auto &t : ts_) {
       t.join();
