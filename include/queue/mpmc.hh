@@ -149,11 +149,15 @@ class Queue {
     uint32_t idx = consumer_old_head & mask_;
     e = std::move(elems_[idx]);
     elems_[idx].~ValueType();
-
-    // wait and update consumer tail
-    while (consumer_handle_.tail_.load(std::memory_order_relaxed) != consumer_old_head) {
-      misc::pause();
+    
+    if constexpr (not isSPSC()) {
+      // wait and update consumer tail
+      while (consumer_handle_.tail_.load(std::memory_order_relaxed) !=
+             consumer_old_head) {
+        misc::pause();
+      }
     }
+
     consumer_handle_.tail_.store(consumer_new_head, std::memory_order_release);
     return true;
   }

@@ -1,16 +1,16 @@
 #include "test_util.hh"
 
-template <typename T>
-using BoundedSPSCQueue = toolbox::container::BoundedSPSCQueue<T>;
+template <typename T, uint32_t Size>
+using BoundedSPSCQueue = toolbox::container::BoundedSPSCQueue<T, Size>;
 
 template <typename T, uint32_t Size>
 using AnotherBoundedSPSCQueue =
     toolbox::container::Queue<T, Size, toolbox::container::QueueMode::SPSC>;
 
 TEST(BoundedSPSCQueue, SPSCCorrectnessTest) {
-  BoundedSPSCQueue<uint64_t> iq(1024);
+  BoundedSPSCQueue<uint64_t, 1024> iq;
   RunSPSCCorrectnessTest(iq, 1 << 20);
-  BoundedSPSCQueue<std::string> sq(1024);
+  BoundedSPSCQueue<std::string, 1024> sq;
   RunSPSCCorrectnessTest(sq, 1 << 20);
   AnotherBoundedSPSCQueue<uint64_t, 1024> aiq;
   RunSPSCCorrectnessTest(aiq, 1 << 20);
@@ -20,7 +20,7 @@ TEST(BoundedSPSCQueue, SPSCCorrectnessTest) {
 
 TEST(BoundedSPSCQueue, DtorTest) {
   {
-    BoundedSPSCQueue<DtorCounter> q(1024);
+    BoundedSPSCQueue<DtorCounter, 1024> q;
     for (int i = 0; i < 10; ++i) {
       EXPECT_TRUE(q.push(DtorCounter()));
     }
@@ -34,7 +34,7 @@ TEST(BoundedSPSCQueue, DtorTest) {
   }
   EXPECT_EQ(DtorCounter::get(), 0);
   {
-    BoundedSPSCQueue<DtorCounter> q(4);
+    BoundedSPSCQueue<DtorCounter, 4> q;
     for (int i = 0; i < 3; ++i) {
       EXPECT_TRUE(q.push(DtorCounter()));
     }
@@ -51,7 +51,7 @@ TEST(BoundedSPSCQueue, DtorTest) {
 }
 
 TEST(BoundedSPSCQueue, MiscTest) {
-  BoundedSPSCQueue<int> queue(2);
+  BoundedSPSCQueue<int, 2> queue;
   EXPECT_EQ(queue.capacity(), 2);
 
   EXPECT_TRUE(queue.isEmpty());

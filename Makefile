@@ -7,7 +7,10 @@ build:
 	CC=clang CXX=clang++ meson build
 
 test:
-	meson test toolbox: -C build -t -1
+	meson test toolbox: -C build -v -t -1
+
+bench:
+	meson test toolbox: -C build -v -t -1 --benchmark
 
 coverage:
 	CC=clang CXX=clang++ meson build-cov -Db_coverage=true && \

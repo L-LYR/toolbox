@@ -38,6 +38,7 @@ incs += include_directories('./include')
 deps = []
 
 # subprojects
+gbench = subproject('google-benchmark')
 gtest = subproject('gtest')
 fmt = subproject('fmt')
 spdlog = subproject('spdlog')
@@ -50,3 +51,4 @@ find_program('valgrind')
 
 # sub-directories
 subdir('./tests')
+subdir('./benchmarks')

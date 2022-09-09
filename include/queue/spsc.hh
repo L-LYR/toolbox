@@ -10,11 +10,11 @@
 namespace toolbox {
 namespace container {
 
-template <typename T>
+template <typename T, uint32_t Size>
 class BoundedSPSCQueue : public util::Noncopyable, public util::Nonmovable {
  public:
   using ValueType = T;
-  using QueueType = BoundedSPSCQueue<ValueType>;
+  using QueueType = BoundedSPSCQueue<ValueType, Size>;
   using ProducerType = QueueProducer<QueueType>;
   using ConsumerType = QueueConsumer<QueueType>;
 
@@ -23,8 +23,8 @@ class BoundedSPSCQueue : public util::Noncopyable, public util::Nonmovable {
   friend class QueueConsumer<QueueType>;
 
  public:
-  explicit BoundedSPSCQueue(uint32_t capacity)
-      : size_(capacity + 1),
+  explicit BoundedSPSCQueue()
+      : size_(Size + 1),
         elems_(static_cast<ValueType*>(std::malloc(sizeof(ValueType) * size_))),
         read_idx_(0),
         write_idx_(0),
