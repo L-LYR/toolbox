@@ -11,26 +11,37 @@
 namespace toolbox {
 namespace container {
 
-class Handle {
- public:
-  Handle() : head_(0), tail_(0) {}
-  ~Handle() = default;
+/// This Queue is borrowed from DPDK.
 
- public:
-  std::atomic_uint32_t head_;
-  std::atomic_uint32_t tail_;
+enum QueueMode {
+  SPSC,
+  MPMC,
+  MPMC_HTS,
+  MPMC_RTS,
 };
 
-/// TODO: waiting for dev(copy)
-class RTSHandle {};
-class HTSHandle {};
-
-template <typename T, typename Handle, uint32_t Size>
+template <typename T, uint32_t Size, QueueMode Mode>
 class Queue {
+  class Handle {
+   public:
+    Handle() : head_(0), tail_(0) {}
+    ~Handle() = default;
+
+   public:
+    std::atomic_uint32_t head_;
+    std::atomic_uint32_t tail_;
+  };
+
+  /// TODO: waiting for dev(copy)
+  class RTSHandle {};
+  class HTSHandle {};
+
  public:
   using ValueType = T;
-  using HandleType = Handle;
-  using QueueType = Queue<ValueType, HandleType, Size>;
+  using HandleType =
+      std::conditional_t<Mode == MPMC or Mode == SPSC, Handle,
+                         std::conditional_t<Mode == MPMC_HTS, HTSHandle, RTSHandle>>;
+  using QueueType = Queue<ValueType, Size, Mode>;
   using ProducerType = QueueProducer<QueueType>;
   using ConsumerType = QueueConsumer<QueueType>;
 
@@ -43,7 +54,7 @@ class Queue {
       : size_(misc::alignUpPowerOf2(Size)),
         mask_(size_ - 1),
         capacity_(Size),
-        counter_(-1, -1),
+        counter_(isSPSC() ? 1 : -1, isSPSC() ? 1 : -1),
         elems_(static_cast<ValueType*>(std::malloc(sizeof(ValueType) * size_))) {
     if (elems_ == nullptr) {
       throw std::bad_alloc();
@@ -64,6 +75,9 @@ class Queue {
   }
 
  public:
+  static constexpr auto isSPSC() -> bool { return Mode == SPSC; }
+
+ public:
   auto producer() -> ProducerType { return ProducerType(*this); }
   auto consumer() -> ConsumerType { return ConsumerType(*this); }
 
@@ -77,6 +91,7 @@ class Queue {
     const uint32_t capacity = capacity_;
     uint32_t producer_old_head = producer_handle_.head_.load(std::memory_order_relaxed);
     // move producer head
+    auto ok = true;
     do {
       std::atomic_thread_fence(std::memory_order_acquire);
 
@@ -84,16 +99,23 @@ class Queue {
       n_free = capacity + consumer_tail - producer_old_head;
       if (n_free < 1) return false;
       producer_new_head = producer_old_head + 1;
-
-    } while (not producer_handle_.head_.compare_exchange_strong(
-        producer_old_head, producer_new_head, std::memory_order_relaxed,
-        std::memory_order_relaxed));
+      if constexpr (isSPSC()) {
+        producer_handle_.head_ = producer_new_head;
+      } else {
+        ok = producer_handle_.head_.compare_exchange_strong(
+            producer_old_head, producer_new_head, std::memory_order_relaxed,
+            std::memory_order_relaxed);
+      }
+    } while (not ok);
     // place element
     new (&elems_[producer_old_head & mask_]) ValueType(std::forward<Args>(args)...);
 
     // wait and update producer tail
-    while (producer_handle_.tail_.load(std::memory_order_relaxed) != producer_old_head) {
-      misc::pause();
+    if constexpr (not isSPSC()) {
+      while (producer_handle_.tail_.load(std::memory_order_relaxed) !=
+             producer_old_head) {
+        misc::pause();
+      }
     }
 
     producer_handle_.tail_.store(producer_new_head, std::memory_order_release);
@@ -106,6 +128,7 @@ class Queue {
 
     // move consumer head
     consumer_old_head = consumer_handle_.head_.load(std::memory_order_relaxed);
+    auto ok = true;
     do {
       std::atomic_thread_fence(std::memory_order_acquire);
 
@@ -113,10 +136,14 @@ class Queue {
           producer_handle_.tail_.load(std::memory_order_acquire) - consumer_old_head;
       if (n_remain < 1) return false;
       consumer_new_head = consumer_old_head + 1;
-
-    } while (not consumer_handle_.head_.compare_exchange_strong(
-        consumer_old_head, consumer_new_head, std::memory_order_relaxed,
-        std::memory_order_relaxed));
+      if constexpr (isSPSC()) {
+        consumer_handle_.head_ = consumer_new_head;
+      } else {
+        ok = consumer_handle_.head_.compare_exchange_strong(
+            consumer_old_head, consumer_new_head, std::memory_order_relaxed,
+            std::memory_order_relaxed);
+      }
+    } while (not ok);
 
     // move element
     uint32_t idx = consumer_old_head & mask_;
@@ -132,20 +159,16 @@ class Queue {
   }
 
  private:
+  alignas(util::cache_line_size) HandleType producer_handle_;
+  [[gnu::unused]] char _pad1_[util::cache_line_size - sizeof(HandleType)];
+
+  alignas(util::cache_line_size) HandleType consumer_handle_;
+  [[gnu::unused]] char _pad2_[util::cache_line_size - sizeof(HandleType)];
+
   uint32_t size_;
   uint32_t mask_;
   uint32_t capacity_;
   DescriptorCounter counter_;
-
-  alignas(util::cache_line_size) [[gnu::unused]] char _pad1_[util::cache_line_size];
-
-  alignas(util::cache_line_size) HandleType producer_handle_;
-
-  alignas(util::cache_line_size) [[gnu::unused]] char _pad2_[util::cache_line_size];
-
-  alignas(util::cache_line_size) HandleType consumer_handle_;
-
-  alignas(util::cache_line_size) [[gnu::unused]] char _pad3_[util::cache_line_size];
 
   ValueType* const elems_;
 };

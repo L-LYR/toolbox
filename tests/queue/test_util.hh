@@ -7,6 +7,7 @@
 #include <random>
 
 #include "queue/spsc.hh"
+#include "queue/mpmc.hh"
 #include "util/timer.hh"
 #include "util/type.hh"
 
@@ -117,14 +118,14 @@ class MPMCCorrectnessTest {
   }
 
  public:
-  explicit MPMCCorrectnessTest(Queue &q, uint32_t n_thread, uint32_t n_ops) {
+  explicit MPMCCorrectnessTest(Queue &q, uint32_t n_threads, uint32_t n_ops) {
     spdlog::info("Queue Type: {}, N thread: {}, N Ops: {}",
-                 toolbox::util::typenameOf<Queue>(), n_thread, n_ops);
+                 toolbox::util::typenameOf<Queue>(), n_threads, n_ops);
     timer_.begin();
 
     std::atomic_uint64_t sum(0);
-    for (uint32_t i = 0; i < n_thread; i++) {
-      ts_.emplace_back(&MPMCCorrectnessTest::pushPop, n_thread, n_ops, std::ref(q),
+    for (uint32_t i = 0; i < n_threads; i++) {
+      ts_.emplace_back(&MPMCCorrectnessTest::pushPop, n_threads, n_ops, std::ref(q),
                        std::ref(sum), i);
     }
     for (auto &t : ts_) {
@@ -143,3 +144,8 @@ class MPMCCorrectnessTest {
   std::vector<std::thread> ts_;
   toolbox::util::Timer timer_;
 };
+
+#define RunSPSCCorrectnessTest(q, size) \
+  std::make_shared<SPSCCorrectnessTest<decltype(q), size>>(q)
+#define RunMPMCCorrectnessTest(q, n_threads, n_ops) \
+  std::make_shared<MPMCCorrectnessTest<decltype(q)>>(q, n_threads, n_ops)

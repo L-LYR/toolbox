@@ -21,4 +21,4 @@ sanitize:
 	meson test toolbox: -C build-sanitize -t -1
 
 clean:
-	rm -rf build*
+	rm -rf build build-coverage build-sanitize

@@ -3,11 +3,19 @@
 template <typename T>
 using BoundedSPSCQueue = toolbox::container::BoundedSPSCQueue<T>;
 
+template <typename T, uint32_t Size>
+using AnotherBoundedSPSCQueue =
+    toolbox::container::Queue<T, Size, toolbox::container::QueueMode::SPSC>;
+
 TEST(BoundedSPSCQueue, SPSCCorrectnessTest) {
-  BoundedSPSCQueue<uint64_t> iq(65535);
-  std::make_unique<SPSCCorrectnessTest<BoundedSPSCQueue<uint64_t>, 1 << 20>>(iq);
-  BoundedSPSCQueue<std::string> sq(65535);
-  std::make_unique<SPSCCorrectnessTest<BoundedSPSCQueue<std::string>, 1 << 20>>(sq);
+  BoundedSPSCQueue<uint64_t> iq(1024);
+  RunSPSCCorrectnessTest(iq, 1 << 20);
+  BoundedSPSCQueue<std::string> sq(1024);
+  RunSPSCCorrectnessTest(sq, 1 << 20);
+  AnotherBoundedSPSCQueue<uint64_t, 1024> aiq;
+  RunSPSCCorrectnessTest(aiq, 1 << 20);
+  AnotherBoundedSPSCQueue<std::string, 1024> asq;
+  RunSPSCCorrectnessTest(asq, 1 << 20);
 }
 
 TEST(BoundedSPSCQueue, DtorTest) {
