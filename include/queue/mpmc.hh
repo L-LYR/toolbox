@@ -85,18 +85,15 @@ class Queue {
   template <typename... Args>
   auto push(Args&&... args) -> bool {
     uint32_t producer_new_head;
-    uint32_t consumer_tail;
     uint32_t n_free;
 
     const uint32_t capacity = capacity_;
-    uint32_t producer_old_head = producer_handle_.head_.load(std::memory_order_relaxed);
+    uint32_t producer_old_head = producer_handle_.head_.load(std::memory_order_consume);
     // move producer head
     auto ok = true;
     do {
-      std::atomic_thread_fence(std::memory_order_acquire);
-
-      consumer_tail = consumer_handle_.tail_.load(std::memory_order_acquire);
-      n_free = capacity + consumer_tail - producer_old_head;
+      n_free = capacity + consumer_handle_.tail_.load(std::memory_order_consume) -
+               producer_old_head;
       if (n_free < 1) return false;
       producer_new_head = producer_old_head + 1;
       if constexpr (isSPSC()) {
@@ -127,13 +124,11 @@ class Queue {
     uint32_t consumer_new_head;
 
     // move consumer head
-    consumer_old_head = consumer_handle_.head_.load(std::memory_order_relaxed);
+    consumer_old_head = consumer_handle_.head_.load(std::memory_order_consume);
     auto ok = true;
     do {
-      std::atomic_thread_fence(std::memory_order_acquire);
-
       auto n_remain =
-          producer_handle_.tail_.load(std::memory_order_acquire) - consumer_old_head;
+          producer_handle_.tail_.load(std::memory_order_consume) - consumer_old_head;
       if (n_remain < 1) return false;
       consumer_new_head = consumer_old_head + 1;
       if constexpr (isSPSC()) {
