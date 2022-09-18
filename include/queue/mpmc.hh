@@ -5,8 +5,8 @@
 
 #include "descriptor.hh"
 #include "util/align.hh"
-#include "util/asm.hh"
 #include "util/math.hh"
+#include "util/misc.hh"
 
 namespace toolbox {
 namespace container {
@@ -32,15 +32,28 @@ class Queue {
     std::atomic_uint32_t tail_;
   };
 
+  class RTSHandle {
+   public:
+    class Raw {
+     public:
+      std::uint32_t head_;
+      std::uint32_t tail_;
+    };
+
+   public:
+    std::atomic<Raw> ht_;
+  };
+
   /// TODO: waiting for dev(copy)
-  class RTSHandle {};
   class HTSHandle {};
 
  public:
   using ValueType = T;
-  using HandleType =
-      std::conditional_t<Mode == MPMC or Mode == SPSC, Handle,
-                         std::conditional_t<Mode == MPMC_HTS, HTSHandle, RTSHandle>>;
+  using HandleType = std::conditional_t<
+      Mode == MPMC or Mode == SPSC, Handle,
+      std::conditional_t<Mode == MPMC_HTS, HTSHandle,
+                         std::conditional_t<Mode == MPMC_RTS, RTSHandle, void>>>;
+  static_assert(not std::is_same_v<Handle, void>, "unknown queue mode");
   using QueueType = Queue<ValueType, Size, Mode>;
   using ProducerType = QueueProducer<QueueType>;
   using ConsumerType = QueueConsumer<QueueType>;
@@ -82,8 +95,8 @@ class Queue {
   auto consumer() -> ConsumerType { return ConsumerType(*this); }
 
  public:
-  template <typename... Args>
-  auto push(Args&&... args) -> bool {
+  template <typename... Args, QueueMode m = Mode>
+  auto push(Args&&... args) -> std::enable_if_t<Mode == MPMC or Mode == SPSC, bool> {
     uint32_t producer_new_head;
     uint32_t n_free;
 
@@ -119,7 +132,8 @@ class Queue {
     return true;
   }
 
-  auto pop(ValueType& e) -> bool {
+  template <QueueMode m = Mode>
+  auto pop(ValueType& e) -> std::enable_if_t<Mode == MPMC or Mode == SPSC, bool> {
     uint32_t consumer_old_head;
     uint32_t consumer_new_head;
 
@@ -144,7 +158,7 @@ class Queue {
     uint32_t idx = consumer_old_head & mask_;
     e = std::move(elems_[idx]);
     elems_[idx].~ValueType();
-    
+
     if constexpr (not isSPSC()) {
       // wait and update consumer tail
       while (consumer_handle_.tail_.load(std::memory_order_relaxed) !=

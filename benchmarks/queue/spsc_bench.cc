@@ -1,5 +1,8 @@
 #include <benchmark/benchmark.h>
 
+#include <mutex>
+#include <queue>
+
 #include "queue/mpmc.hh"
 #include "queue/spsc.hh"
 
@@ -31,6 +34,60 @@ class SPSCBench : public ::benchmark::Fixture {
   ProducerType p_{q_};
 };
 
+template <typename T>
+class DummyQueue {
+ public:
+  using ValueType = T;
+  using QueueType = DummyQueue<ValueType>;
+  using ProducerType = toolbox::container::QueueProducer<QueueType>;
+  using ConsumerType = toolbox::container::QueueConsumer<QueueType>;
+
+ public:
+  friend class toolbox::container::QueueProducer<QueueType>;
+  friend class toolbox::container::QueueConsumer<QueueType>;
+
+ public:
+  auto producer() -> ProducerType { return ProducerType(*this); }
+  auto consumer() -> ConsumerType { return ConsumerType(*this); }
+
+ public:
+  template <typename... Args>
+  auto push(Args... args) -> bool {
+    if (not mu_.try_lock()) {
+      return false;
+    }
+    q_.emplace(args...);
+    mu_.unlock();
+    return true;
+  }
+
+  auto pop(ValueType& t) -> bool {
+    if (not mu_.try_lock()) {
+      return false;
+    }
+    t = std::move(q_.front());
+    q_.pop();
+    mu_.unlock();
+    return true;
+  }
+
+ public:
+  DummyQueue() = default;
+  ~DummyQueue() = default;
+
+ public:
+ private:
+  std::mutex mu_;
+  std::queue<T> q_;
+  toolbox::container::DescriptorCounter counter_{1, 1};
+};
+
+using Queue1 = toolbox::container::BoundedSPSCQueue<uint64_t, 1024>;
+using Queue2 = toolbox::container::UnboundedSPSCQueue<uint64_t>;
+using Queue3 =
+    toolbox::container::Queue<uint64_t, 1024, toolbox::container::QueueMode::SPSC>;
+using Queue4 = DummyQueue<uint64_t>;
+
 #define Bench(q)                         \
   namespace q##Bench {                   \
     using Benchmark = SPSCBench<q>;      \
@@ -47,11 +104,7 @@ class SPSCBench : public ::benchmark::Fixture {
         ->Threads(2)                     \
         ->UseRealTime();                 \
   }
-
-using Queue1 = toolbox::container::BoundedSPSCQueue<uint64_t, 1024>;
 Bench(Queue1);
-using Queue2 = toolbox::container::UnboundedSPSCQueue<uint64_t>;
 Bench(Queue2);
-using Queue3 =
-    toolbox::container::Queue<uint64_t, 1024, toolbox::container::QueueMode::SPSC>;
 Bench(Queue3);
+Bench(Queue4);
