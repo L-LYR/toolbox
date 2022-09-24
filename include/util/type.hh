@@ -12,7 +12,7 @@ namespace toolbox {
 namespace util {
 
 template <typename T>
-auto typenameOf() -> std::string {
+auto TypenameOf() -> std::string {
   int status = 0;
   std::unique_ptr<char, decltype(free)*> demangled_name(
       abi::__cxa_demangle(typeid(T).name(), nullptr, nullptr, &status), free);

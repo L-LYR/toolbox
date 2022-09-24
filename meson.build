@@ -14,8 +14,9 @@ project(
 cpp = meson.get_compiler('cpp')
 
 # compile arguments
+
 if cpp.get_id() == 'gcc'
-    add_global_arguments(
+    add_project_arguments(
         '--param',
         'destructive-interference-size=64',
         language: 'cpp',
@@ -23,7 +24,7 @@ if cpp.get_id() == 'gcc'
 endif
 
 if get_option('b_sanitize') == 'address'
-    add_global_arguments(
+    add_project_arguments(
         '-fsanitize=address',
         '-fno-omit-frame-pointer',
         language: 'cpp',

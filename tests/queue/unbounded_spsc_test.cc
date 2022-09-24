@@ -1,18 +1,18 @@
 #include "test_util.hh"
 
 template <typename T>
-using UnboundedSPSCQueue = toolbox::container::UnboundedSPSCQueue<T>;
+using UnboundedSPSC = toolbox::container::UnboundedSPSCQueue<T>;
 
 TEST(UnboundedSPSCQueue, SPSCCorrectnessTest) {
-  UnboundedSPSCQueue<uint64_t> iq;
+  UnboundedSPSC<uint64_t> iq;
   RunSPSCCorrectnessTest(iq, 1 << 20);
-  UnboundedSPSCQueue<std::string> sq;
+  UnboundedSPSC<std::string> sq;
   RunSPSCCorrectnessTest(sq, 1 << 20);
 }
 
 TEST(UnboundedSPSCQueue, DtorTest) {
   {
-    UnboundedSPSCQueue<DtorCounter> q;
+    UnboundedSPSC<DtorCounter> q;
     for (int i = 0; i < 10; ++i) {
       q.push(DtorCounter());
     }
@@ -26,7 +26,7 @@ TEST(UnboundedSPSCQueue, DtorTest) {
   }
   EXPECT_EQ(DtorCounter::get(), 0);
   {
-    UnboundedSPSCQueue<DtorCounter> q;
+    UnboundedSPSC<DtorCounter> q;
     for (int i = 0; i < 3; ++i) {
       q.push(DtorCounter());
     }

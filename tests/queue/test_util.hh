@@ -6,8 +6,8 @@
 #include <memory>
 #include <random>
 
-#include "queue/spsc.hh"
 #include "queue/mpmc.hh"
+#include "queue/spsc.hh"
 #include "util/timer.hh"
 #include "util/type.hh"
 
@@ -48,7 +48,7 @@ class SPSCCorrectnessTest {
     for (size_t i = 0; i < TestDataSize; i++) {
       test_data_.at(i) = TestData<ValueType>::generate();
     }
-    spdlog::info("Queue Type: {}, TestDataSize: {}", toolbox::util::typenameOf<Queue>(),
+    spdlog::info("Queue Type: {}, TestDataSize: {}", toolbox::util::TypenameOf<Queue>(),
                  TestDataSize);
     timer_.begin();
 
@@ -120,7 +120,7 @@ class MPMCCorrectnessTest {
  public:
   explicit MPMCCorrectnessTest(Queue &q, uint32_t n_threads, uint32_t n_ops) {
     spdlog::info("Queue Type: {}, N thread: {}, N Ops: {}",
-                 toolbox::util::typenameOf<Queue>(), n_threads, n_ops);
+                 toolbox::util::TypenameOf<Queue>(), n_threads, n_ops);
     timer_.begin();
 
     std::atomic_uint64_t sum(0);

@@ -9,6 +9,7 @@ foreach bench_name : benches
         bench_name + '.cc',
         include_directories: incs,
         dependencies: bench_deps,
+        cpp_args: ['-O2'],
     )
     benchmark(bench_name, exe)
 endforeach

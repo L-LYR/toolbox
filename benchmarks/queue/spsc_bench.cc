@@ -65,6 +65,10 @@ class DummyQueue {
     if (not mu_.try_lock()) {
       return false;
     }
+    if (q_.empty()) {
+      mu_.unlock();
+      return false;
+    }
     t = std::move(q_.front());
     q_.pop();
     mu_.unlock();
@@ -82,12 +86,17 @@ class DummyQueue {
   toolbox::container::DescriptorCounter counter_{1, 1};
 };
 
-using Queue1 = toolbox::container::BoundedSPSCQueue<uint64_t, 1024>;
-using Queue2 = toolbox::container::UnboundedSPSCQueue<uint64_t>;
-using Queue3 =
+using BoundedSPSC = toolbox::container::BoundedSPSCQueue<uint64_t, 1024>;
+using UnboundedSPSC = toolbox::container::UnboundedSPSCQueue<uint64_t>;
+using SPSCMode =
     toolbox::container::Queue<uint64_t, 1024, toolbox::container::QueueMode::SPSC>;
-using Queue4 = DummyQueue<uint64_t>;
+using MPMCMode =
+    toolbox::container::Queue<uint64_t, 1024, toolbox::container::QueueMode::MPMC>;
+using MPMC_HTSMode =
+    toolbox::container::Queue<uint64_t, 1024, toolbox::container::QueueMode::MPMC_HTS>;
+using Dummy = DummyQueue<uint64_t>;
 
+#define BenchName(q) #q "Bench"
 #define Bench(q)                         \
   namespace q##Bench {                   \
     using Benchmark = SPSCBench<q>;      \
@@ -100,11 +109,15 @@ using Queue4 = DummyQueue<uint64_t>;
       }                                  \
     }                                    \
     BENCHMARK_REGISTER_F(Benchmark, Run) \
+        ->Name(BenchName(q))             \
         ->Iterations(1 << 24)            \
         ->Threads(2)                     \
         ->UseRealTime();                 \
   }
-Bench(Queue1);
-Bench(Queue2);
-Bench(Queue3);
-Bench(Queue4);
+
+Bench(BoundedSPSC);
+Bench(UnboundedSPSC);
+Bench(SPSCMode);
+Bench(MPMCMode);
+Bench(MPMC_HTSMode);
+Bench(Dummy);

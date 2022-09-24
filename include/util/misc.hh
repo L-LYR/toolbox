@@ -9,6 +9,10 @@
 
 #define PAUSE asm volatile("yield" ::: "memory")
 
+#else
+
+#define PAUSE
+
 #endif
 
 namespace toolbox {

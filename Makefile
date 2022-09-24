@@ -7,9 +7,11 @@ build:
 	CC=clang CXX=clang++ meson build
 
 test:
+	meson build --reconfigure -Dbuildtype=debug
 	meson test toolbox: -C build -v -t -1
 
 bench:
+	meson build --reconfigure -Dbuildtype=release
 	meson test toolbox: -C build -v -t -1 --benchmark
 
 coverage:
