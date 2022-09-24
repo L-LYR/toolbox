@@ -1,5 +1,6 @@
 benches = [
     'spsc_bench',
+    'mpmc_bench',
 ]
 
 foreach bench_name : benches
