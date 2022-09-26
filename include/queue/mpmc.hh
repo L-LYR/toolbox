@@ -60,7 +60,7 @@ class Queue {
 
   class [[gnu::packed]] alignas(sizeof(uint64_t)) HTSHandle {
    public:
-    HTSHandle() : head_(0), tail_(0){};
+    HTSHandle() : head_(0), tail_(0) {}
     ~HTSHandle() = default;
 
    public:
@@ -89,8 +89,54 @@ class Queue {
     std::atomic_uint32_t tail_;
   };
 
-  /// TODO: waiting for dev(copy)
-  class RTSHandle {};
+  class [[gnu::packed]] alignas(sizeof(uint64_t)) PosRef {
+   public:
+    PosRef() : pos_(0), ref_(0) {}
+    PosRef(uint64_t x) { *raw() = x; }
+    ~PosRef() = default;
+
+   public:
+    auto asUint64() -> uint64_t { return *raw(); }
+    auto asUint64Ref() -> uint64_t& { return *raw(); }
+
+   public:
+    auto load(std::memory_order order = std::memory_order_seq_cst) -> PosRef {
+      return rawAtomic()->load(order);
+    }
+
+    auto compareExchangeStrong(uint64_t& expected, uint64_t desired,
+                               std::memory_order success = std::memory_order_seq_cst,
+                               std::memory_order failure = std::memory_order_seq_cst)
+        -> bool {
+      return rawAtomic()->compare_exchange_strong(expected, desired, success, failure);
+    }
+
+   private:
+    auto rawAtomic() -> std::atomic_uint64_t* {
+      return reinterpret_cast<std::atomic_uint64_t*>(this);
+    }
+    auto raw() -> uint64_t* { return reinterpret_cast<uint64_t*>(this); }
+
+   public:
+    uint32_t pos_;
+    uint32_t ref_;
+  };
+
+  constexpr static uint32_t head_tail_dis_max = Size / 8;
+  class [[gnu::packed]] RTSHandle {
+   public:
+    RTSHandle() : head_(), tail_(), dis_max_(head_tail_dis_max) {}
+    ~RTSHandle() = default;
+
+   public:
+    auto head() -> uint32_t { return head_.pos_; }
+    auto tail() -> uint32_t { return tail_.pos_; }
+
+   public:
+    PosRef head_;
+    PosRef tail_;
+    uint32_t dis_max_;
+  };
 
  public:
   using ValueType = T;
@@ -230,7 +276,8 @@ class Queue {
         misc::pause();
         cp = producer_handle_.load(std::memory_order_acquire);
       }
-      n_free = capacity + consumer_handle_.tail_ - cp.head_;
+      n_free =
+          capacity + consumer_handle_.tail_.load(std::memory_order_relaxed) - cp.head_;
       if (n_free < 1) return false;
       np.tail_ = cp.tail_;
       np.head_ = cp.head_ + 1;
@@ -257,7 +304,7 @@ class Queue {
         misc::pause();
         cp = consumer_handle_.load(std::memory_order_acquire);
       }
-      n_remain = producer_handle_.tail_ - cp.head_;
+      n_remain = producer_handle_.tail_.load(std::memory_order_relaxed) - cp.head_;
       if (n_remain < 1) return false;
       np.tail_ = cp.tail_;
       np.head_ = cp.head_ + 1;
@@ -271,6 +318,89 @@ class Queue {
     elems_[idx].~ValueType();
 
     consumer_handle_.tail_.store(np.head_, std::memory_order_release);
+    return true;
+  }
+
+  template <typename... Args, QueueMode mode = Mode>
+  auto push(Args... args) -> std::enable_if_t<mode == MPMC_RTS, bool> {
+    PosRef nh;
+    uint32_t n_free;
+
+    auto ok = false;
+    const uint32_t capacity = capacity_;
+    PosRef ch = producer_handle_.head_.load(std::memory_order_acquire);
+    do {
+      while (ch.pos_ - producer_handle_.tail_.pos_ > producer_handle_.dis_max_) {
+        misc::pause();
+        ch = producer_handle_.head_.load(std::memory_order_acquire);
+      }
+      n_free = capacity + consumer_handle_.tail_.pos_ - ch.pos_;
+      if (n_free < 1) return false;
+      nh.pos_ = ch.pos_ + 1;
+      nh.ref_ = ch.ref_ + 1;
+      ok = producer_handle_.head_.compareExchangeStrong(ch.asUint64Ref(), nh.asUint64(),
+                                                        std::memory_order_acquire,
+                                                        std::memory_order_acquire);
+    } while (not ok);
+
+    new (&elems_[ch.pos_ & mask_]) ValueType(std::forward<Args>(args)...);
+
+    PosRef nt;
+    PosRef h;
+    PosRef ct = producer_handle_.tail_.load(std::memory_order_acquire);
+    do {
+      h = producer_handle_.head_.load(std::memory_order_relaxed);
+      nt = ct;
+      if (++nt.ref_ == h.ref_) {
+        nt.pos_ = h.pos_;
+      }
+      ok = producer_handle_.tail_.compareExchangeStrong(ct.asUint64Ref(), nt.asUint64(),
+                                                        std::memory_order_release,
+                                                        std::memory_order_acquire);
+    } while (not ok);
+
+    return true;
+  }
+
+  template <QueueMode mode = Mode>
+  auto pop(ValueType& e) -> std::enable_if_t<mode == MPMC_RTS, bool> {
+    PosRef nh;
+    uint32_t n_remain;
+
+    auto ok = false;
+    PosRef ch = consumer_handle_.head_.load(std::memory_order_acquire);
+    do {
+      while (ch.pos_ - consumer_handle_.tail_.pos_ > consumer_handle_.dis_max_) {
+        misc::pause();
+        ch = consumer_handle_.head_.load(std::memory_order_acquire);
+      }
+      n_remain = producer_handle_.tail_.pos_ - ch.pos_;
+      if (n_remain < 1) return false;
+      nh.pos_ = ch.pos_ + 1;
+      nh.ref_ = ch.ref_ + 1;
+      ok = consumer_handle_.head_.compareExchangeStrong(ch.asUint64Ref(), nh.asUint64(),
+                                                        std::memory_order_acquire,
+                                                        std::memory_order_acquire);
+    } while (not ok);
+
+    uint32_t idx = ch.pos_ & mask_;
+    e = std::move(elems_[idx]);
+    elems_[idx].~ValueType();
+
+    PosRef nt;
+    PosRef h;
+    PosRef ct = consumer_handle_.tail_.load(std::memory_order_acquire);
+    do {
+      h = consumer_handle_.head_.load(std::memory_order_relaxed);
+      nt = ct;
+      if (++nt.ref_ == h.ref_) {
+        nt.pos_ = h.pos_;
+      }
+      ok = consumer_handle_.tail_.compareExchangeStrong(ct.asUint64Ref(), nt.asUint64(),
+                                                        std::memory_order_release,
+                                                        std::memory_order_acquire);
+    } while (not ok);
+
     return true;
   }
 

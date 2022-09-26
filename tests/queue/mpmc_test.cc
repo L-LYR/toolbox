@@ -1,20 +1,20 @@
 #include "test_util.hh"
 
-#define MPMCQueueTestName(Mode) Mode##Queue
+#define MPMCQueue(Mode) Mode##Queue
 
 #define MPMCTest(Mode)                                                         \
   template <typename T, uint32_t Size>                                         \
-  using MPMCQueueTestName(Mode) =                                              \
+  using MPMCQueue(Mode) =                                                      \
       toolbox::container::Queue<T, Size, toolbox::container::QueueMode::Mode>; \
-  TEST(MPMCQueueTestName(Mode), MPMCCorrectnessTest) {                         \
-    MPMCQueueTestName(Mode)<uint64_t, 1024> iq;                                \
+  TEST(MPMCQueue(Mode), MPMCCorrectnessTest) {                                 \
+    MPMCQueue(Mode)<uint64_t, 1024> iq;                                        \
     for (uint32_t i = 1; i <= std::thread::hardware_concurrency(); i++) {      \
       RunMPMCCorrectnessTest(iq, i, 1 << 20);                                  \
     }                                                                          \
   }                                                                            \
-  TEST(MPMCQueueTestName(Mode), DtorTest) {                                    \
+  TEST(MPMCQueue(Mode), DtorTest) {                                            \
     {                                                                          \
-      MPMCQueueTestName(Mode)<DtorCounter, 1023> q;                            \
+      MPMCQueue(Mode)<DtorCounter, 1023> q;                                    \
       for (int i = 0; i < 10; ++i) {                                           \
         EXPECT_TRUE(q.push(DtorCounter()));                                    \
       }                                                                        \
@@ -28,7 +28,7 @@
     }                                                                          \
     EXPECT_EQ(DtorCounter::get(), 0);                                          \
     {                                                                          \
-      MPMCQueueTestName(Mode)<DtorCounter, 1023> q;                            \
+      MPMCQueue(Mode)<DtorCounter, 1023> q;                                    \
       for (int i = 0; i < 3; ++i) {                                            \
         EXPECT_TRUE(q.push(DtorCounter()));                                    \
       }                                                                        \
@@ -46,3 +46,4 @@
 
 MPMCTest(MPMC);
 MPMCTest(MPMC_HTS);
+MPMCTest(MPMC_RTS);

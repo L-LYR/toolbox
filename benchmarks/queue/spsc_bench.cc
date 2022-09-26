@@ -42,6 +42,8 @@ using MPMCMode =
     toolbox::container::Queue<uint64_t, 1024, toolbox::container::QueueMode::MPMC>;
 using MPMC_HTSMode =
     toolbox::container::Queue<uint64_t, 1024, toolbox::container::QueueMode::MPMC_HTS>;
+using MPMC_RTSMode =
+    toolbox::container::Queue<uint64_t, 1024, toolbox::container::QueueMode::MPMC_RTS>;
 using Dummy = DummyQueue<uint64_t>;
 
 #define BenchName(q) #q "Bench"
@@ -68,4 +70,5 @@ Bench(UnboundedSPSC);
 Bench(SPSCMode);
 Bench(MPMCMode);
 Bench(MPMC_HTSMode);
+Bench(MPMC_RTSMode);
 Bench(Dummy);
