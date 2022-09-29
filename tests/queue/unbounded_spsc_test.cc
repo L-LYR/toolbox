@@ -1,3 +1,4 @@
+#include "queue/spsc.hh"
 #include "test_util.hh"
 
 template <typename T>

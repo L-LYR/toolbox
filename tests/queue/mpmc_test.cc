@@ -1,3 +1,5 @@
+#include "queue/mpmc.hh"
+
 #include "test_util.hh"
 
 #define MPMCQueue(Mode) Mode##Queue

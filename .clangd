@@ -1,0 +1,23 @@
+Diagnostics:
+  ClangTidy:
+    Add:
+      [
+        clang-analyzer-*,
+        cppcoreguidelines-*,
+        modernize-*,
+        performance-*,
+        concurrency-*,
+      ]
+    Remove:
+      [
+        cppcoreguidelines-avoid-magic-numbers,
+        cppcoreguidelines-macro-usage,
+        cppcoreguidelines-avoid-non-const-global-variables,
+        cppcoreguidelines-owning-memory,
+        cppcoreguidelines-special-member-functions,
+        cppcoreguidelines-avoid-c-arrays,
+        cppcoreguidelines-pro-bounds-pointer-arithmetic,
+        modernize-avoid-c-arrays,
+        modernize-use-trailing-return-type,
+      ]
+  UnusedIncludes: Strict

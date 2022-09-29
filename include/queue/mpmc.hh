@@ -11,8 +11,7 @@
 #include "util/math.hh"
 #include "util/misc.hh"
 
-namespace toolbox {
-namespace container {
+namespace toolbox::container {
 
 /// This Queue is borrowed from DPDK.
 
@@ -43,7 +42,7 @@ class Queue {
    public:
     RawHandle() : head_(0), tail_(0) {}
     ~RawHandle() = default;
-    RawHandle(uint64_t x) { *raw() = x; }
+    RawHandle(uint64_t x) : head_(x >> 32), tail_(x) {}
 
    public:
     auto sync() -> bool { return head_ == tail_; }
@@ -51,7 +50,7 @@ class Queue {
     auto asUint64Ref() -> uint64_t& { return *raw(); }
 
    private:
-    auto raw() -> uint64_t* { return reinterpret_cast<uint64_t*>(this); }
+    auto raw() -> uint64_t* { return (uint64_t*)(this); }
 
    public:
     uint32_t head_;
@@ -80,9 +79,7 @@ class Queue {
     }
 
    private:
-    auto rawAtomic() -> std::atomic_uint64_t* {
-      return reinterpret_cast<std::atomic_uint64_t*>(this);
-    }
+    auto rawAtomic() -> std::atomic_uint64_t* { return (std::atomic_uint64_t*)(this); }
 
    public:
     std::atomic_uint32_t head_;
@@ -92,7 +89,7 @@ class Queue {
   class [[gnu::packed]] alignas(sizeof(uint64_t)) PosRef {
    public:
     PosRef() : pos_(0), ref_(0) {}
-    PosRef(uint64_t x) { *raw() = x; }
+    PosRef(uint64_t x) : pos_(x >> 32), ref_(x) {}
     ~PosRef() = default;
 
    public:
@@ -112,10 +109,8 @@ class Queue {
     }
 
    private:
-    auto rawAtomic() -> std::atomic_uint64_t* {
-      return reinterpret_cast<std::atomic_uint64_t*>(this);
-    }
-    auto raw() -> uint64_t* { return reinterpret_cast<uint64_t*>(this); }
+    auto rawAtomic() -> std::atomic_uint64_t* { return (std::atomic_uint64_t*)(this); }
+    auto raw() -> uint64_t* { return (uint64_t*)(this); }
 
    public:
     uint32_t pos_;
@@ -159,7 +154,7 @@ class Queue {
         mask_(size_ - 1),
         capacity_(Size),
         counter_(isSPSC() ? 1 : -1, isSPSC() ? 1 : -1),
-        elems_(static_cast<ValueType*>(std::malloc(sizeof(ValueType) * size_))) {
+        elems_(static_cast<ValueType*>(::operator new[](sizeof(ValueType) * size_))) {
     if (elems_ == nullptr) {
       throw std::bad_alloc();
     }
@@ -175,7 +170,7 @@ class Queue {
         }
       }
     }
-    std::free(elems_);
+    ::operator delete[](elems_);
   }
 
  public:
@@ -188,8 +183,8 @@ class Queue {
  public:
   template <typename... Args, QueueMode mode = Mode>
   auto push(Args&&... args) -> std::enable_if_t<mode == MPMC or mode == SPSC, bool> {
-    uint32_t producer_new_head;
-    uint32_t n_free;
+    uint32_t producer_new_head = 0;
+    uint32_t n_free = 0;
 
     const uint32_t capacity = capacity_;
     uint32_t producer_old_head = producer_handle_.head_.load(std::memory_order_consume);
@@ -225,12 +220,11 @@ class Queue {
 
   template <QueueMode mode = Mode>
   auto pop(ValueType& e) -> std::enable_if_t<mode == MPMC or mode == SPSC, bool> {
-    uint32_t consumer_old_head;
-    uint32_t consumer_new_head;
-    uint32_t n_remain;
+    uint32_t consumer_new_head = 0;
+    uint32_t n_remain = 0;
 
     // move consumer head
-    consumer_old_head = consumer_handle_.head_.load(std::memory_order_consume);
+    uint32_t consumer_old_head = consumer_handle_.head_.load(std::memory_order_consume);
     auto ok = true;
     do {
       n_remain =
@@ -266,7 +260,7 @@ class Queue {
   template <typename... Args, QueueMode mode = Mode>
   auto push(Args&&... args) -> std::enable_if_t<mode == MPMC_HTS, bool> {
     RawHandle np;
-    uint32_t n_free;
+    uint32_t n_free = 0;
 
     auto ok = false;
     const uint32_t capacity = capacity_;
@@ -295,7 +289,7 @@ class Queue {
   template <QueueMode mode = Mode>
   auto pop(ValueType& e) -> std::enable_if_t<mode == MPMC_HTS, bool> {
     RawHandle np;
-    uint32_t n_remain;
+    uint32_t n_remain = 0;
 
     auto ok = false;
     RawHandle cp = consumer_handle_.load(std::memory_order_acquire);
@@ -324,7 +318,7 @@ class Queue {
   template <typename... Args, QueueMode mode = Mode>
   auto push(Args... args) -> std::enable_if_t<mode == MPMC_RTS, bool> {
     PosRef nh;
-    uint32_t n_free;
+    uint32_t n_free = 0;
 
     auto ok = false;
     const uint32_t capacity = capacity_;
@@ -365,7 +359,7 @@ class Queue {
   template <QueueMode mode = Mode>
   auto pop(ValueType& e) -> std::enable_if_t<mode == MPMC_RTS, bool> {
     PosRef nh;
-    uint32_t n_remain;
+    uint32_t n_remain = 0;
 
     auto ok = false;
     PosRef ch = consumer_handle_.head_.load(std::memory_order_acquire);
@@ -405,19 +399,18 @@ class Queue {
   }
 
  private:
-  alignas(util::cache_line_size) HandleType producer_handle_;
-  alignas(util::cache_line_size) [[gnu::unused]] char _pad1_[util::cache_line_size];
+  alignas(util::cache_line_size) HandleType producer_handle_{};
+  alignas(util::cache_line_size) [[gnu::unused]] char _pad1_[util::cache_line_size]{};
 
-  alignas(util::cache_line_size) HandleType consumer_handle_;
-  alignas(util::cache_line_size) [[gnu::unused]] char _pad2_[util::cache_line_size];
+  alignas(util::cache_line_size) HandleType consumer_handle_{};
+  alignas(util::cache_line_size) [[gnu::unused]] char _pad2_[util::cache_line_size]{};
 
-  uint32_t size_;
-  uint32_t mask_;
-  uint32_t capacity_;
-  DescriptorCounter counter_;
+  uint32_t size_{};
+  uint32_t mask_{};
+  uint32_t capacity_{};
+  DescriptorCounter counter_{-1, -1};
 
-  ValueType* const elems_;
+  ValueType* const elems_{nullptr};
 };
 
-}  // namespace container
-}  // namespace toolbox
+}  // namespace toolbox::container
