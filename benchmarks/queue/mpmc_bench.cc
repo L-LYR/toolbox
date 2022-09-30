@@ -1,18 +1,32 @@
 #include <benchmark/benchmark.h>
 
+#include <random>
+
 #include "dummy_queue.hh"
 #include "queue/mpmc.hh"
 
 template <typename T>
 class TestData {
  public:
-  static auto generate() -> T { return rand() % (1000000007UL); }
+  static auto generate() -> T {
+    return std::uniform_int_distribution<T>(0, 1'000'000'007UL)(rng);
+  }
+
+ private:
+  thread_local static std::random_device rd;
+  thread_local static std::mt19937_64 rng;
 };
+
+template <typename T>
+thread_local std::random_device TestData<T>::rd{};
+
+template <typename T>
+thread_local std::mt19937_64 TestData<T>::rng{TestData<T>::rd()};
 
 template <>
 class TestData<std::string> {
  public:
-  static auto generate() -> std::string { return std::string(12, 'F'); }
+  static auto generate() -> std::string { return std::string{12, 'F'}; }
 };
 
 template <typename Queue>
@@ -42,7 +56,7 @@ class MPMCBench : public ::benchmark::Fixture {
     }
   }
 
- public:
+ private:
   Queue q_{};
   std::atomic_int ready_{0};
 };

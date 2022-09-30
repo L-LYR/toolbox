@@ -1,3 +1,5 @@
+#include "queue/mpmc.hh"
+#include "queue/spsc.hh"
 #include "test_util.hh"
 
 template <typename T, uint32_t Size>

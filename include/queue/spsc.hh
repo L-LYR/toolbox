@@ -7,8 +7,7 @@
 #include "util/align.hh"
 #include "util/marker.hh"
 
-namespace toolbox {
-namespace container {
+namespace toolbox::container {
 
 template <typename T, uint32_t Size>
 class BoundedSPSCQueue : public util::Noncopyable, public util::Nonmovable {
@@ -25,10 +24,7 @@ class BoundedSPSCQueue : public util::Noncopyable, public util::Nonmovable {
  public:
   explicit BoundedSPSCQueue()
       : size_(Size + 1),
-        elems_(static_cast<ValueType*>(std::malloc(sizeof(ValueType) * size_))),
-        read_idx_(0),
-        write_idx_(0),
-        counter_(1, 1) {
+        elems_(static_cast<ValueType*>(::operator new[](sizeof(ValueType) * size_))) {
     if (size_ < 2) {
       throw std::runtime_error("size of queue is too small");
     }
@@ -47,7 +43,7 @@ class BoundedSPSCQueue : public util::Noncopyable, public util::Nonmovable {
         }
       }
     }
-    std::free(elems_);
+    ::operator delete[](elems_);
   }
 
  public:
@@ -107,12 +103,12 @@ class BoundedSPSCQueue : public util::Noncopyable, public util::Nonmovable {
   // }
 
  public:
-  auto isEmpty() const -> bool {
+  [[nodiscard]] auto isEmpty() const -> bool {
     return read_idx_.load(std::memory_order_acquire) ==
            write_idx_.load(std::memory_order_acquire);
   }
 
-  auto isFull() const -> bool {
+  [[nodiscard]] auto isFull() const -> bool {
     auto next = write_idx_.load(std::memory_order_acquire) + 1;
     if (next == size_) {
       next = 0;
@@ -120,7 +116,7 @@ class BoundedSPSCQueue : public util::Noncopyable, public util::Nonmovable {
     return next == read_idx_.load(std::memory_order_acquire);
   }
 
-  auto approximateSize() const -> size_t {
+  [[nodiscard]] auto approximateSize() const -> size_t {
     int ret = write_idx_.load(std::memory_order_acquire) -
               read_idx_.load(std::memory_order_acquire);
     if (ret < 0) {
@@ -129,19 +125,19 @@ class BoundedSPSCQueue : public util::Noncopyable, public util::Nonmovable {
     return ret;
   }
 
-  auto capacity() const -> size_t { return size_ - 1; }
+  [[nodiscard]] auto capacity() const -> size_t { return size_ - 1; }
 
  private:
-  [[gnu::unused]] char _head_pad_[util::cache_line_size];
+  [[gnu::unused]] char _head_pad_[util::cache_line_size]{};
 
   const uint32_t size_;
   ValueType* const elems_;
-  alignas(util::cache_line_size) std::atomic_uint64_t read_idx_;
-  alignas(util::cache_line_size) std::atomic_uint64_t write_idx_;
+  alignas(util::cache_line_size) std::atomic_uint64_t read_idx_{0};
+  alignas(util::cache_line_size) std::atomic_uint64_t write_idx_{0};
 
-  [[gnu::unused]] char _tail_pad_[util::cache_line_size - sizeof(std::atomic_uint64_t)];
+  [[gnu::unused]] char _tail_pad_[util::cache_line_size - sizeof(std::atomic_uint64_t)]{};
 
-  DescriptorCounter counter_;
+  DescriptorCounter counter_{1, 1};
 };
 
 template <typename T>
@@ -172,12 +168,8 @@ class UnboundedSPSCQueue : public util::Noncopyable, public util::Nonmovable {
   };
 
  public:
-  explicit UnboundedSPSCQueue()
-      : head_(new Node),
-        tail_(head_),
-        unused_(head_),
-        head_copy_(head_),
-        counter_(1, 1) {}
+  UnboundedSPSCQueue()
+      : head_(new Node), tail_(head_), unused_(head_), head_copy_(head_) {}
   ~UnboundedSPSCQueue() {
     Node* p = unused_;
     while (p != nullptr) {
@@ -216,7 +208,7 @@ class UnboundedSPSCQueue : public util::Noncopyable, public util::Nonmovable {
  private:
   template <typename... Args>
   auto newNode(Args&&... args) -> Node* {
-    Node* n;
+    Node* n = nullptr;
     if (unused_ != head_copy_) {
       n = unused_;
       unused_ = unused_->next_.load(std::memory_order_relaxed);
@@ -236,18 +228,17 @@ class UnboundedSPSCQueue : public util::Noncopyable, public util::Nonmovable {
   }
 
  public:
-  auto approximateSize() const -> size_t { return size_; }
+  [[nodiscard]] auto approximateSize() const -> size_t { return size_; }
 
  private:
   alignas(util::cache_line_size) std::atomic<Node*> head_;
-  [[gnu::unused]] char _pad_[util::cache_line_size - sizeof(head_)];
+  [[gnu::unused]] char _pad_[util::cache_line_size - sizeof(head_)]{};
   alignas(util::cache_line_size) Node* tail_;
   Node* unused_;
   Node* head_copy_;  // between tail_ and unused_tail_
 
-  std::atomic_uint32_t size_;
-  DescriptorCounter counter_;
+  std::atomic_uint32_t size_{0};
+  DescriptorCounter counter_{1, 1};
 };
 
-}  // namespace container
-}  // namespace toolbox
+}  // namespace toolbox::container
